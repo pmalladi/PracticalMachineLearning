@@ -1,0 +1,106 @@
+---
+title: "Prediction Model on Exercise Data"
+author: "Pavan Malladi"
+date: "September 27, 2015"
+output: html_document
+---
+
+#Synopsis#
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+We use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants who were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+We fit a model to understand how the data classifies into various classes and then use the model to predict new data.
+
+```{r, echo=FALSE}
+library(dplyr)
+library(randomForest)
+library(caret)
+setwd("C:/Users/MALPA06/Documents/R Workspace/Module_8")
+```
+
+#Data Preparation#
+Read the testing and training datasets.
+```{r, echo=FALSE}
+tr_full <- read.csv("pml-training.csv")
+ts_full <- read.csv("pml-testing.csv")
+```
+
+We eliminate columns that do not consistently have any valuable information
+```{r, echo=TRUE}
+good_cols <- colSums(is.na(ts_full))/nrow(ts_full) < 0.1
+tr_cln <- tr_full[,good_cols]
+ts_cln <- ts_full[,good_cols]
+```
+
+In our case, the most valuable information is in numeric form. So, extract numeric columns.
+```{r, echo=TRUE}
+numeric_cols <- sapply(tr_cln, is.numeric)
+tr_cln <- tr_cln[, numeric_cols]
+ts_cln <- ts_cln[,numeric_cols]
+```
+
+The above step would have eliminated the "target" variable as well. Add it back.
+```{r,echo=TRUE}
+tr_cln <- mutate(tr_cln, classe = tr_full[,ncol(tr_full)])
+ts_cln <- mutate(ts_cln, classe = ts_full[,ncol(ts_full)])
+```
+
+Get rid of timestamp columns that do not hold much information in our case.
+```{r,echo=TRUE}
+timestamp_cols <- c(1,2)
+tr_cln <- tr_cln[,-timestamp_cols]
+ts_cln <- ts_cln[,-timestamp_cols]
+```
+
+Model can be simplified by eliminating highly correlated columns/predictors.
+```{r,echo=TRUE}
+highCorr <- findCorrelation(cor(tr_cln[,-ncol(tr_cln)]), 0.90)
+tr_cln <- tr_cln[,-highCorr]
+ts_cln <- ts_cln[,-highCorr]
+```
+
+Let us now split the data for Training and Cross-validation purposes. This allows us to verify how good our model works
+```{r,echo=TRUE}
+set.seed(1)
+forTrain <- createDataPartition(tr_cln[,ncol(tr_cln)], p = 0.75, list = FALSE)
+tr_train <- tr_cln[forTrain,]
+tr_crossValid  <- tr_cln[-forTrain,]
+```
+
+In order to determine the optimal number of variables that should be used in our prediction model, we determine mtry value using tuneRF function. The predictors and target values are passed as parameters along with a few other tuning parameters.
+The variable count that gives the minimum out-of-B error is the value we should use for "mtry" parameter in the randomForest function for prediction.
+```{r,echo=TRUE}
+mtryV <- tuneRF(tr_train[,-ncol(tr_train)],tr_train[,ncol(tr_train)],ntreeTry = 200, stepFactor = 1.5, improve = 0.01, trace=TRUE,plot=TRUE,dobest = FALSE)
+```
+
+#Prediction Model for our Training Data#
+Using the randomForest function, fit a prediction model for our training data.
+```{r,echo=TRUE}
+rfFit <- randomForest(classe~.,data=tr_train,mtry=apply(mtryV,2,which.min)[2],ntree=200,keep.forest = TRUE, importance=TRUE, crossValid = tr_crossValid)
+predcrossValid <- predict(rfFit, newdata = tr_crossValid)
+```
+
+Confusion Matrix between the actual and predicted values for cross-validation data
+```{r,echo=TRUE}
+confusionMatrix(predcrossValid, tr_crossValid$classe)
+```
+
+#Prediction for Test Data#
+We can now predict the outcome for Test data
+```{r,echo=TRUE}
+predTest <- predict(rfFit, newdata = ts_cln)
+predTest
+```
+
+#Expected Out of Sample Error#
+The expected out of sample (or OOB) error is the OOB computed by tuneRF for the mtry value that was used in final randomForest function. And the value is:
+```{r,echo=FALSE}
+min(mtryV[,2])
+```
+
+#Plots#
+Plot of important variables in the Model
+```{r, echo=FALSE}
+varImpPlot(rfFit)
+plot(rfFit, log = "y")
+```
