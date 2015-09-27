@@ -98,8 +98,6 @@ img {
 <div id="data-preparation" class="section level1">
 <h1>Data Preparation</h1>
 <p>Read the testing and training datasets.</p>
-<pre class="r"><code>tr_full &lt;- read.csv(&quot;pml-training.csv&quot;)
-ts_full &lt;- read.csv(&quot;pml-testing.csv&quot;)</code></pre>
 <p>We eliminate columns that do not consistently have any valuable information</p>
 <pre class="r"><code>good_cols &lt;- colSums(is.na(ts_full))/nrow(ts_full) &lt; 0.1
 tr_cln &lt;- tr_full[,good_cols]
@@ -193,6 +191,7 @@ predTest</code></pre>
 <h1>Expected Out of Sample Error</h1>
 <p>The expected out of sample (or OOB) error is the OOB computed by tuneRF for the mtry value that was used in final randomForest function. And the value is:</p>
 <pre><code>## [1] 0.001630656</code></pre>
+<p>The Accuracy for Cross-Validation test data is 0.9967 and the OOB error is 0.0016. The Accuracy for cross-validation test data is as expected given the OOB error.</p>
 </div>
 <div id="plots" class="section level1">
 <h1>Plots</h1>
